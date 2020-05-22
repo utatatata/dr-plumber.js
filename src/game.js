@@ -59,7 +59,7 @@ const movePos = (dir, { row, col }) => {
   throw `invalid direction '${dir}'`;
 };
 
-const sppedToTime = (speed) => {
+const speedToFallTime = (speed) => {
   switch (speed) {
     case SPEED_LOW:
       return 1500;
@@ -91,6 +91,8 @@ const inRange = ({ row, col }) => U.between(1, 16, row) && U.between(1, 8, col);
 const randomColor = () => U.randomChoice([COLOR_RED, COLOR_BLUE, COLOR_YELLOW]);
 const randomMedicine = () => makeMedicine(randomColor());
 const randomVirus = () => makeVirus(randomColor());
+const randomCapsule = (pos, dir) =>
+  makeCapsule(randomColor(), randomColor(), pos, dir);
 // const randomBottle = () =>
 //   U.range(1, 16)
 //     .flatMap((row) => U.range(1, 8).map((col) => ({ row, col })))
@@ -137,6 +139,8 @@ const initPlayingState = (model) => {
   const now = Date.now();
 
   model.playingState.lastFalledTime = now;
+  model.current = randomCapsule({ row: 1, col: 4 }, DIRECTION_RIGHT);
+  model.next = [randomMedicine(), randomMedicine()];
 };
 
 /********** Views **********/
@@ -249,8 +253,10 @@ const loop = (screen, model) => {
     case MODE_PREPARING:
       const allNumberOfViruses = getAllNumberOfViruses(model.level);
       const elapsedTime = now - model.preparingState.lastAddVirusTime;
-      const numberOfAddingViruses = Math.round(
-        elapsedTime / (3000 / allNumberOfViruses)
+      const numberOfAddingViruses = U.clamp(
+        0,
+        model.preparingState.addingVirusPosList.length,
+        Math.round(elapsedTime / (3000 / allNumberOfViruses))
       );
 
       if (model.preparingState.addingVirusPosList.length === 0) {
@@ -267,7 +273,14 @@ const loop = (screen, model) => {
       }
       break;
     case MODE_READY:
-      if (now - model.playingState.lastFalledTime) break;
+      if (
+        now - model.playingState.lastFalledTime >
+        speedToFallTime(model.speed)
+      ) {
+        model.playingState.lastFalledTime = now;
+        const newPos = movePos(DIRECTION_DOWN, model.current.pos);
+      }
+      break;
     case MODE_PLAYING:
       break;
     case MODE_LANDING:
