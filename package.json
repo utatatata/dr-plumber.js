@@ -1,0 +1,47 @@
+{
+  "name": "dr-plumber",
+  "version": "0.1.0",
+  "description": "A puzzle game like a certain plumber playing a doctor.",
+  "keywords": [
+    "puzzle",
+    "game",
+    "dr.",
+    "doctor",
+    "medicine",
+    "virus"
+  ],
+  "homepage": "https://github.com/utatatata/dr-plumber.js#readme",
+  "bugs": {
+    "url": "https://github.com/utatatata/dr-plumber.js/issues"
+  },
+  "license": "ISC",
+  "author": {
+    "name": "utakuma",
+    "email": "i@utakuma.info"
+  },
+  "files": [
+    "bin",
+    "src"
+  ],
+  "main": "src/index.js",
+  "bin": {
+    "dr-plumber": "./bin/dr-plumber"
+  },
+  "directories": {
+    "lib": "src",
+    "test": "__tests__"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/utatatata/dr-plumber.js.git"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "blessed": "^0.1.81",
+    "configstore": "^5.0.1",
+    "yargs": "^15.3.1"
+  },
+  "private": true
+}
