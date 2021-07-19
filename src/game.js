@@ -144,6 +144,18 @@ const makeCapsule = (color1, color2, pos, dir) => ({
   pos: { ...pos },
   dir,
 });
+const isVanishing = (block) => block.type === TYPE_VANISHING;
+const toVanishing = (block) => {
+  block.type = TYPE_VANISHING;
+}
+
+const getBlock = (bottle, { row, col }) => bottle[row][col];
+const setBlock = (bottle, { row, col }, block) => {
+  bottle[row][col] = block;
+}
+const modifyBlock = (bottle, pos, modify) => {
+  setBlock(bottle, pos, modify(getBlock(bottle, pos), pos));
+}
 
 // row: 0 ~ 16, 0 is offset
 const inRange = ({ row, col }) => U.between(0, 16, row) && U.between(1, 8, col);
@@ -182,7 +194,7 @@ const bottleToBlocks = (bottle) =>
     .flatMap((row) =>
       U.range(1, 8).map((col) => ({
         pos: { row, col },
-        block: bottle[row][col] === null ? null : bottle[row][col],
+        block: getBlock(bottle, { row, col }),
       }))
     )
     .filter(({ pos, block }) => block !== null);
@@ -190,12 +202,12 @@ const bottleToBlocks = (bottle) =>
 // Destructive
 const setCapsule = (capsule, bottle) => {
   capsuleToBlocks(capsule).forEach(({ pos, block }) => {
-    bottle[pos.row][pos.col] = block;
+    setBlock(bottle, pos, block);
   });
 };
 
 const notOverlapping = (pos, bottle) =>
-  inRange(pos) && bottle[pos.row][pos.col] === null;
+  inRange(pos) && getBlock(bottle, pos) === null;
 
 const notOverlappingCapsule = (capsule, bottle) =>
   capsuleToBlocks(capsule).every(({ pos }) => notOverlapping(pos, bottle));
@@ -204,7 +216,7 @@ const getSameColorColPosList = (color, pos, bottle) => {
   const posList = [{ ...pos }];
 
   for (let col = pos.col - 1; col >= 1; col--) {
-    const block = bottle[pos.row][col];
+    const block = getBlock(bottle, { ...pos, col });
     if (block !== null && block.color === color) {
       posList.push({ row: pos.row, col });
     } else {
@@ -212,7 +224,7 @@ const getSameColorColPosList = (color, pos, bottle) => {
     }
   }
   for (let col = pos.col + 1; col <= 8; col++) {
-    const block = bottle[pos.row][col];
+    const block = getBlock(bottle, { ...pos, col })
     if (block !== null && block.color === color) {
       posList.push({ row: pos.row, col });
     } else {
@@ -227,7 +239,7 @@ const getSameColorRowPosList = (color, pos, bottle) => {
   const posList = [{ ...pos }];
 
   for (let row = pos.row - 1; row >= 1; row--) {
-    const block = bottle[row][pos.col];
+    const block = getBlock(bottle, { ...pos, row });
     if (block !== null && block.color === color) {
       posList.push({ row, col: pos.col });
     } else {
@@ -235,7 +247,7 @@ const getSameColorRowPosList = (color, pos, bottle) => {
     }
   }
   for (let row = pos.row + 1; row <= 16; row++) {
-    const block = bottle[row][pos.col];
+    const block = getBlock(bottle, { ...pos, row });
     if (block !== null && block.color === color) {
       posList.push({ row, col: pos.col });
     } else {
@@ -246,7 +258,17 @@ const getSameColorRowPosList = (color, pos, bottle) => {
   return posList.length >= 4 ? posList : [];
 };
 
-// const getFloatingColList = bottle =>
+const isFloating = (bottle, pos) => {
+  const lower = movePosDown(pos);
+  return inRange(lower) && lower === null
+}
+
+// const getFloatingPosList = (bottle) =>
+//   U.range(1, 16).flatMap((row) =>
+//     U.range(1, 8).map((col) =>
+// 
+//     )
+//   )
 
 const getAllNumberOfViruses = (level) => (level + 1) * 4;
 
@@ -576,8 +598,8 @@ const loop = (screen, model) => {
         model.mode = MODE_READY;
       } else if (numberOfAddingViruses >= 1) {
         U.range(1, numberOfAddingViruses).forEach(() => {
-          const { row, col } = model.preparingState.addingVirusPosList.pop();
-          model.bottle[row][col] = randomVirus();
+          const pos = model.preparingState.addingVirusPosList.pop();
+          setBlock(model.bottle, pos, randomVirus());
           model.lastAddVirusTime = now;
           screen.append(view(model));
           screen.render();
@@ -705,18 +727,15 @@ const loop = (screen, model) => {
         initPlayingPreparingState(model);
         model.mode = MODE_PLAYING_PREPARING;
       } else {
-        vanishingBlockList.forEach(({ row, col }) => {
-          const block = model.bottle[row][col];
+        vanishingBlockList.forEach((pos) => {
+          const block = getBlock(model.bottle, pos)
           if (block !== null) {
             if (block.type === TYPE_CAPSULE) {
               // unlink
-              const linkPos = movePos(block.linkDir, { row, col });
-              const linkBlock = model.bottle[linkPos.row][linkPos.col];
-              model.bottle[linkPos.row][linkPos.col] = makeMedicine(
-                linkBlock.color
-              );
+              const linkPos = movePos(block.linkDir, pos);
+              modifyBlock(model.bottle, linkPos, (b, p) => makeMedicine(b.color));
             }
-            model.bottle[row][col].type = TYPE_VANISHING;
+            toVanishing(getBlock(model.bottle, pos))
           }
         });
 
@@ -736,9 +755,9 @@ const loop = (screen, model) => {
     case MODE_VANISHING:
       U.range(1, 16).forEach((row) => {
         U.range(1, 8).forEach((col) => {
-          const block = model.bottle[row][col];
-          if (block !== null && block.type === TYPE_VANISHING) {
-            model.bottle[row][col] = null;
+          const block = getBlock(model.bottle, { row, col })
+          if (block !== null && isVanishing(block)) {
+            setBlock(model.bottle, { row, col }, null);
           }
         });
       });
@@ -750,6 +769,7 @@ const loop = (screen, model) => {
       screen.render();
       break;
     case MODE_FALLING:
+      // TODO
       break;
     case MODE_GAMEOVER_READY:
       if (now - model.gameOverReadyState.startTime > 500) {
