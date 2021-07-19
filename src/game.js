@@ -58,6 +58,36 @@ const colorToStr = (color) => {
   }
   throw `invalid block color '${color}'`;
 };
+const modeToStr = (mode) => {
+  switch(mode) {
+    case MODE_INIT:
+      return "MODE_INIT";
+    case MODE_PREPARING:
+      return "MODE_PREPARING";
+    case MODE_READY:
+      return "MODE_READY";
+    case MODE_PLAYING_PREPARING:
+      return "MODE_PLAYING_PREPARING";
+    case MODE_PLAYING:
+      return "MODE_PLAYING";
+    case MODE_LANDING:
+      return "MODE_LANDING";
+    case MODE_VANISHING_PREPARING:
+      return "MODE_VANISHING_PREPARING";
+    case MODE_VANISHING_READY:
+      return "MODE_VANISHING_READY";
+    case MODE_VANISHING:
+      return "MODE_VANISHING";
+    case MODE_FALLING:
+      return "MODE_FALLING";
+    case MODE_GAMEOVER_READY:
+      return "MODE_GAMEOVER_READY";
+    case MODE_GAMEOVER:
+      return "MODE_GAMEOVER";
+    default:
+      throw `invalid mode '${mode}'`
+  }
+}
 
 const movePos = (dir, { row, col }) => {
   switch (dir) {
@@ -75,7 +105,7 @@ const movePos = (dir, { row, col }) => {
 const movePosLeft = (pos) => movePos(DIRECTION_LEFT, pos);
 const movePosRight = (pos) => movePos(DIRECTION_RIGHT, pos);
 const movePosUp = (pos) => movePos(DIRECTION_UP, pos);
-const movePosDown = (po) => movePos(DIRECTION_DOWN, pos);
+const movePosDown = (pos) => movePos(DIRECTION_DOWN, pos);
 
 const speedToFallTime = (speed) => {
   switch (speed) {
@@ -258,17 +288,43 @@ const getSameColorRowPosList = (color, pos, bottle) => {
   return posList.length >= 4 ? posList : [];
 };
 
+const isNullBlock = (bottle, pos) => inRange(pos) && getBlock(bottle, pos) === null
+
 const isFloating = (bottle, pos) => {
-  const lower = movePosDown(pos);
-  return inRange(lower) && lower === null
+  const block = getBlock(bottle, pos)
+  const lowerPos = movePosDown(pos);
+
+  if (block !== null) {
+    if (block.type === TYPE_MEDICINE) {
+      return isNullBlock(bottle, lowerPos)
+    } else if (block.type === TYPE_CAPSULE) {
+      const linkPos = movePos(block.linkDir, pos);
+      const linkLowerPos = movePosDown(linkPos)
+      return isNullBlock(bottle, lowerPos) && isNullBlock(bottle, linkLowerPos)
+    } else {
+      return false
+    }
+  } else {
+    return false
+  }
 }
 
-// const getFloatingPosList = (bottle) =>
-//   U.range(1, 16).flatMap((row) =>
-//     U.range(1, 8).map((col) =>
-// 
-//     )
-//   )
+const getFloatingPosList = (bottle) =>
+  U.range(1, 16).flatMap((row) =>
+    U.range(1, 8).map((col) =>
+      ({ row, col })
+    )
+  ).filter(pos => isFloating(bottle, pos))
+
+const existsFloatingBlock = (bottle) => getFloatingPosList(bottle).length !== 0
+
+const fallBlocks = (bottle) => {
+  getFloatingPosList(bottle).forEach(pos => {
+    const block = getBlock(bottle, pos);
+    setBlock(bottle, pos, null)
+    setBlock(bottle, movePosDown(pos), block)
+  })
+}
 
 const getAllNumberOfViruses = (level) => (level + 1) * 4;
 
@@ -309,6 +365,12 @@ const initModel = (options) => ({
     select: SELECT_YES,
   },
 });
+
+const modelToStr = (model) => {
+  const copyModel = { ...model }
+  copyModel.mode = modeToStr(copyModel.mode);
+  return JSON.stringify(copyModel)
+}
 
 // Destructive
 const initPreparingState = (model) => {
@@ -553,6 +615,33 @@ const continueView = (hidden, yes) =>
     ],
   });
 
+const debugView = (model, hidden) =>
+  B.box({
+    top: 0,
+    left: 25,
+    width: 80,
+    height: 30,
+    hidden,
+    style: {
+      bg: "black",
+    },
+    border: {
+      type: "line",
+    },
+    children: [
+      B.text({
+        top: 0,
+        left: 0,
+        style: {
+          fg: "white",
+          bg: "black",
+        },
+        content: modelToStr(model),
+      }),
+    ],
+  });
+
+
 const view = (model) =>
   B.box({
     width: "100%",
@@ -567,6 +656,7 @@ const view = (model) =>
         model.mode !== MODE_GAMEOVER,
         model.gameOverState.select === SELECT_YES
       ),
+      debugView(model, !model.debug),
     ],
   });
 
@@ -769,7 +859,14 @@ const loop = (screen, model) => {
       screen.render();
       break;
     case MODE_FALLING:
-      // TODO
+      if (!existsFloatingBlock(model.bottle)) {
+        model.mode = MODE_PLAYING_PREPARING;
+      } else {
+        fallBlocks(model.bottle);
+      }
+
+      screen.append(view(model));
+      screen.render();
       break;
     case MODE_GAMEOVER_READY:
       if (now - model.gameOverReadyState.startTime > 500) {

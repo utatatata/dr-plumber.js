@@ -6,6 +6,7 @@ const defaultOptions = {
   level: 10,
   fps: 64,
   speed: "mid",
+  debug: false,
 };
 
 const validateSpeed = (speed) => {
@@ -55,7 +56,12 @@ module.exports = yargs
         .option("speed", {
           describe: "fall speed",
           choices: ["low", "mid", "hi"],
-          default: "mid",
+          default: defaultOptions.speed,
+        })
+        .option("debug", {
+          describe: "debug mode",
+          type: "boolean",
+          default: defaultOptions.debug,
         }),
     async (options) => {
       G.main(validate(options));
