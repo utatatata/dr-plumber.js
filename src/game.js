@@ -296,11 +296,11 @@ const isFloating = (bottle, pos) => {
 
   if (block !== null) {
     if (block.type === TYPE_MEDICINE) {
-      return isNullBlock(bottle, lowerPos)
+      return isNullBlock(bottle, lowerPos) || isFloating(bottle, lowerPos)
     } else if (block.type === TYPE_CAPSULE) {
       const linkPos = movePos(block.linkDir, pos);
       const linkLowerPos = movePosDown(linkPos)
-      return isNullBlock(bottle, lowerPos) && isNullBlock(bottle, linkLowerPos)
+      return (isNullBlock(bottle, lowerPos) || isFloating(bottle, lowerPos)) && (isNullBlock(bottle, linkLowerPos) || isFloating(bottle, linkLowerPos))
     } else {
       return false
     }
@@ -318,11 +318,20 @@ const getFloatingPosList = (bottle) =>
 
 const existsFloatingBlock = (bottle) => getFloatingPosList(bottle).length !== 0
 
+const moveBlockDown = (bottle, pos) => {
+  const block = getBlock(bottle, pos);
+  const lowerPos = movePosDown(pos);
+  const lowerBlock = getBlock(bottle, lowerPos);
+  if (lowerBlock !== null) {
+    moveBlockDown(bottle, lowerPos);
+  }
+  setBlock(bottle, pos, null);
+  setBlock(bottle, lowerPos, block)
+}
+
 const fallBlocks = (bottle) => {
   getFloatingPosList(bottle).forEach(pos => {
-    const block = getBlock(bottle, pos);
-    setBlock(bottle, pos, null)
-    setBlock(bottle, movePosDown(pos), block)
+    moveBlockDown(bottle, pos);
   })
 }
 
@@ -430,6 +439,8 @@ const initVanishingState = (model) => {
 // Destructive
 const initFallingState = (model) => {
   const now = Date.now();
+
+  model.fallingState.lastFalledTime = now;
 };
 
 // Destructive
@@ -445,6 +456,15 @@ const initGameOverState = (model) => {
 
   model.gameOverState.select = SELECT_YES;
 };
+
+const changeMode = (model, mode) => {
+  model.mode = mode;
+  switch (mode) {
+    case MODE_FALLING:
+      initFallingState(model)
+      break;
+  }
+}
 
 /********** Views **********/
 
@@ -861,7 +881,8 @@ const loop = (screen, model) => {
     case MODE_FALLING:
       if (!existsFloatingBlock(model.bottle)) {
         model.mode = MODE_PLAYING_PREPARING;
-      } else {
+      } else if (now - model.fallingState.lastFalledTime > 200) {
+        model.fallingState.lastFalledTime = now;
         fallBlocks(model.bottle);
       }
 
