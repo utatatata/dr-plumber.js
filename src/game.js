@@ -291,23 +291,43 @@ const getSameColorRowPosList = (color, pos, bottle) => {
 const isNullBlock = (bottle, pos) => inRange(pos) && getBlock(bottle, pos) === null
 
 const isFloating = (bottle, pos) => {
-  const block = getBlock(bottle, pos)
-  const lowerPos = movePosDown(pos);
+  const recur = (bottle, pos) => k => {
+   const block = getBlock(bottle, pos)
+   const lowerPos = movePosDown(pos);
 
-  if (block !== null) {
-    if (block.type === TYPE_MEDICINE) {
-      return isNullBlock(bottle, lowerPos) || isFloating(bottle, lowerPos)
-    } else if (block.type === TYPE_CAPSULE) {
-      const linkPos = movePos(block.linkDir, pos);
-      const linkLowerPos = movePosDown(linkPos)
-      return (isNullBlock(bottle, lowerPos) || isFloating(bottle, lowerPos)) && (isNullBlock(bottle, linkLowerPos) || isFloating(bottle, linkLowerPos))
-    } else {
-      return false
-    }
-  } else {
-    return false
+   if (block !== null) {
+     if (block.type === TYPE_MEDICINE) {
+       // return isNullBlock(bottle, lowerPos) || isFloating(bottle, lowerPos)
+       return U.delay(() => recur(bottle, lowerPos)(b => isNullBlock(bottle, lowerPos) || k(b)))
+     } else if (block.type === TYPE_CAPSULE) {
+       const linkPos = movePos(block.linkDir, pos);
+       const linkLowerPos = movePosDown(linkPos)
+       // return (isNullBlock(bottle, lowerPos) || isFloating(bottle, lowerPos))
+       //     && (isNullBlock(bottle, linkLowerPos) || isFloating(bottle, linkLowerPos))
+       return U.delay(() =>
+         recur(bottle, lowerPos)(b1 =>
+           U.runTrampoline((k) =>
+             U.delay(() =>
+               recur(bottle, linkLowerPos)(b2 =>
+                 (isNullBlock(bottle, lowerPos) || k(b1)) &&
+                 (isNullBlock(bottle, linkLowerPos) || k(b2)))
+             )
+           )
+         )
+      )
+     } else {
+       // return false
+       return U.done(k(false))
+     }
+   } else {
+     // return false
+     return U.done(k(false))
+   }
   }
+  return U.runTrampoline(recur(bottle, pos))
 }
+
+const length = xs => 1 + length(U.tail(xs));
 
 const getFloatingPosList = (bottle) =>
   U.range(1, 16).flatMap((row) =>
@@ -880,7 +900,8 @@ const loop = (screen, model) => {
       break;
     case MODE_FALLING:
       if (!existsFloatingBlock(model.bottle)) {
-        model.mode = MODE_PLAYING_PREPARING;
+        // model.mode = MODE_PLAYING_PREPARING;
+        model.mode = MODE_LANDING;
       } else if (now - model.fallingState.lastFalledTime > 200) {
         model.fallingState.lastFalledTime = now;
         fallBlocks(model.bottle);

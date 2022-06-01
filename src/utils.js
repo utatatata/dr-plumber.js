@@ -24,6 +24,41 @@ const randomTake = (xs, n) => {
   return result;
 };
 
+const tail = (xs) => xs.slice(1);
+
+const last = (xs) => xs[xs.length - 1];
+
+const DONE = Symbol();
+const DELAY = Symbol();
+
+const done = data => ({ type: DONE, data })
+const delay = data => ({ type: DELAY, data: data })
+
+const runTrampoline = (f) => {
+  let k = f(x => x);
+  while (true) {
+    const { type, data } = k
+    switch (type) {
+      case DONE:
+        return data
+      case DELAY:
+        k = data();
+        break;
+      default:
+        throw `invalid trampoline data type '${type}'`
+    }
+  }
+}
+
+// e.g.
+const length = (xs) => (k) => {
+  if (xs.length === 0) {
+    return done(k(0))
+  } else {
+    return delay(() => length(tail(xs))(n => k(n) + 1))
+  }
+}
+
 module.exports = {
   between,
   clamp,
@@ -31,4 +66,10 @@ module.exports = {
   randomInt,
   randomChoice,
   randomTake,
+  tail,
+  last,
+  done,
+  delay,
+  runTrampoline,
+  length,
 };
